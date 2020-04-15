@@ -1,4 +1,5 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+﻿
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 using namespace std;
 /*
@@ -59,7 +60,7 @@ public:
 		/*
 			Opening base image file and entering resize coefficient
 		*/
-		FILE* img = fopen(baseImg,"rb");
+		FILE* img = fopen(baseImg, "rb");
 		fread(&head, sizeof(BMPHEAD), 1, img);
 		cout << "Enter coefficient to resize image\n";
 		int n;
@@ -69,17 +70,16 @@ public:
 		char outFile[256];
 		gets_s(outFile);
 		FILE* out = fopen(outFile, "wb");
-		fwrite(&head,sizeof(BMPHEAD),1,out);
-		PIXELDATA* first;
-	//	fread(&first, sizeof(first), 1, img);
-		for (int i = 0;i<65;i++)
+		fwrite(&head, sizeof(BMPHEAD), 1, out);
+		PIXELDATA first;
+		for (int i = 0; i < 65; i++)
 		{
-			for (int j = 0; j < 65;j++) {
+			for (int j = 0; j < 65; j++) {
 				fread(&first, sizeof(PIXELDATA), 1, img);
 				fwrite(&first, sizeof(PIXELDATA), 1, out);
 			}
 		}
- 		fclose(img);
+		fclose(img);
 		fclose(out);
 	}
 
@@ -89,18 +89,7 @@ public:
 
 int main()
 {
-	
+
 	Image img;
 	img.Resize();
-	int i;
-	
-	FILE* f = fopen("test.bmp", "rb");
-	unsigned char info[54];
-
-	// read the 54-byte header
-	fread(info, sizeof(unsigned char), 54, f);
-
-	// extract image height and width from header
-	int width = *(int*)&info[18];
-	int height = *(int*)&info[22];
 }
