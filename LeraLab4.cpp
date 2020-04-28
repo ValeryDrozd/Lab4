@@ -1,10 +1,6 @@
-﻿
-#define _CRT_SECURE_NO_WARNINGS
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 using namespace std;
-/*
-	Struct with data of image
-*/
 typedef struct {
 	int8_t id[2];            // Завжди дві літери 'B' і 'M'
 	int32_t filesize;        // Розмір файла в байтах
@@ -22,74 +18,33 @@ typedef struct {
 	int32_t biClrUsed;       // Для індексованих зображень, можна поставити 0L
 	int32_t biClrImportant;  // Те саме
 } BMPHEAD;
-/*
-	Struct with pixel
-*/
+
 typedef struct {
 	int8_t redComponent;
 	int8_t greenComponent;
 	int8_t blueComponent;
 } PIXELDATA;
-
-/*
-	Image class
-*/
-class Image {
-	/*
-		File with filename and header
-	*/
-	char baseImg[256];
+const int width = 66;
+const int height = 67;
+int main() {
+	FILE* in = fopen("test.bmp", "rb");
+	if (!in) { cout << "Something wrong with input file"; exit(1); }
+	FILE* out = fopen("out.bmp", "wb");
+	if (!out) { cout << "Something wrong with output file"; exit(2); }
 	BMPHEAD head;
-public:
-	/*
-		Initialising Image class
-	*/
-	Image() {
-		cout << "Reading image\n";
-		cout << "Enter path to file\n";
-		gets_s(baseImg);
-		FILE* imgfile = fopen(baseImg, "rb");
-		if (!imgfile)
-		{
-			cout << "File error!"; exit(1);
+	fread(&head, sizeof(BMPHEAD), 1, in);
+	fwrite(&head, sizeof(BMPHEAD), 1, out);
+	PIXELDATA p;
+	cout << sizeof(PIXELDATA) << endl;
+	for (int i = 1; i <= height; i++) {
+		for (int j = 1; j <= width; j++) {
+			fread(&p, sizeof(PIXELDATA), 1, in);
+			fwrite(&p, sizeof(PIXELDATA), 1, out);
 		}
-		fclose(imgfile);
+		for (int j = 1; j <= (sizeof(PIXELDATA) * width) % 4; j++)
+			fputc(0x00, out);
 	}
-
-	void Resize() {
-		/*
-			Opening base image file and entering resize coefficient
-		*/
-		FILE* img = fopen(baseImg, "rb");
-		fread(&head, sizeof(BMPHEAD), 1, img);
-		cout << "Enter coefficient to resize image\n";
-		int n;
-		cin >> n;
-		cout << "Enter output file\n";
-		cin.ignore(256, '\n');
-		char outFile[256];
-		gets_s(outFile);
-		FILE* out = fopen(outFile, "wb");
-		fwrite(&head, sizeof(BMPHEAD), 1, out);
-		PIXELDATA first;
-		for (int i = 0; i < 65; i++)
-		{
-			for (int j = 0; j < 65; j++) {
-				fread(&first, sizeof(PIXELDATA), 1, img);
-				fwrite(&first, sizeof(PIXELDATA), 1, out);
-			}
-		}
-		fclose(img);
-		fclose(out);
-	}
-
-
-};
-
-
-int main()
-{
-
-	Image img;
-	img.Resize();
+	fclose(in);
+	fclose(out);
+	cout << sizeof(PIXELDATA);
 }
