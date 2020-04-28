@@ -1,50 +1,97 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+﻿#define  _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 using namespace std;
-typedef struct {
-	int8_t id[2];            // Завжди дві літери 'B' і 'M'
-	int32_t filesize;        // Розмір файла в байтах
-	int16_t reserved[2];     // 0, 0
-	int32_t headersize;      // 54L для 24-бітних зображень
-	int32_t infoSize;        // 40L для 24-бітних зображень
-	int32_t width;           // ширина зображення в пікселях
-	int32_t depth;           // висота зображення в пікселях
-	int16_t biPlanes;        // 1 (для 24-бітних зображень)
-	int16_t bits;            // 24 (для 24-бітних зображень)
-	int32_t biCompression;   // 0L
-	int32_t biSizeImage;     // Можна поставити в 0L для зображень без компрессії (наш варіант)
-	int32_t biXPelsPerMeter; // Рекомендована кількість пікселів на метр, можна 0L
-	int32_t biYPelsPerMeter; // Те саме, по висоті
-	int32_t biClrUsed;       // Для індексованих зображень, можна поставити 0L
-	int32_t biClrImportant;  // Те саме
-} BMPHEAD;
+typedef unsigned __int16 WORD;
 
 typedef struct {
-	int8_t redComponent;
-	int8_t greenComponent;
-	int8_t blueComponent;
-} PIXELDATA;
-const int width = 66;
-const int height = 67;
-int main() {
-	FILE* in = fopen("test.bmp", "rb");
-	if (!in) { cout << "Something wrong with input file"; exit(1); }
-	FILE* out = fopen("out.bmp", "wb");
-	if (!out) { cout << "Something wrong with output file"; exit(2); }
-	BMPHEAD head;
-	fread(&head, sizeof(BMPHEAD), 1, in);
-	fwrite(&head, sizeof(BMPHEAD), 1, out);
-	PIXELDATA p;
-	cout << sizeof(PIXELDATA) << endl;
-	for (int i = 1; i <= height; i++) {
-		for (int j = 1; j <= width; j++) {
-			fread(&p, sizeof(PIXELDATA), 1, in);
-			fwrite(&p, sizeof(PIXELDATA), 1, out);
-		}
-		for (int j = 1; j <= (sizeof(PIXELDATA) * width) % 4; j++)
-			fputc(0x00, out);
+	WORD   bfType;         // 0x4d42 | 0x4349 | 0x5450
+	int    bfSize;         // размер файла
+	int    bfReserved;     // 0
+	int    bfOffBits;      // смещение до поля данных,
+						   // обычно 54 = 16 + biSize
+	int    biSize;         // размер струкуры в байтах:
+						   // 40(BITMAPINFOHEADER) или 108(BITMAPV4HEADER)
+						   // или 124(BITMAPV5HEADER)
+	int    biWidth;        // ширина в точках
+	int    biHeight;       // высота в точках
+	WORD   biPlanes;       // всегда должно быть 1
+	WORD   biBitCount;     // 0 | 1 | 4 | 8 | 16 | 24 | 32
+	int    biCompression;  // BI_RGB | BI_RLE8 | BI_RLE4 |
+						   // BI_BITFIELDS | BI_JPEG | BI_PNG
+						   // реально используется лишь BI_RGB
+	int    biSizeImage;    // Количество байт в поле данных
+						   // Обычно устанавливается в 0
+	int    biXPelsPerMeter;// горизонтальное разрешение, точек на дюйм
+	int    biYPelsPerMeter;// вертикальное разрешение, точек на дюйм
+	int    biClrUsed;      // Количество используемых цветов
+						   // (если есть таблица цветов)
+	int    biClrImportant; // Количество существенных цветов.
+						   // Можно считать, просто 0
+} BMPheader;
+int* loadBMP(const char* fname)
+{
+	FILE* f = fopen(fname, "rb");
+	if (!f) return NULL;
+	BMPheader bh;    // File header sizeof(BMPheader) = 56
+	size_t res;
+
+	// читаем заголовок
+	res = fread(&bh, 1, sizeof(BMPheader), f);
+	if (res != sizeof(BMPheader)) { fclose(f); return NULL; }
+
+	// проверяем сигнатуру
+	if (bh.bfType != 0x4d42 && bh.bfType != 0x4349 && bh.bfType != 0x5450) { fclose(f); return NULL; }
+
+	// проверка размера файла
+	fseek(f, 0, SEEK_END);
+	int filesize = ftell(f);
+	// восстановим указатель в файле:
+	fseek(f, sizeof(BMPheader), SEEK_SET);
+	// проверим условия
+	if (bh.bfSize != filesize ||
+		bh.bfReserved != 0 ||
+		bh.biPlanes != 1 ||
+		(bh.biSize != 40 && bh.biSize != 108 && bh.biSize != 124) ||
+		bh.bfOffBits != 14 + bh.biSize ||
+
+		bh.biWidth < 1 || bh.biWidth >10000 ||
+		bh.biHeight < 1 || bh.biHeight>10000 ||
+		bh.biBitCount != 24 ||             // пока рассматриваем только полноцветные изображения
+		bh.biCompression != 0                // пока рассматриваем только несжатие изображения
+		)
+	{
+		fclose(f);
+		return NULL;
 	}
-	fclose(in);
-	fclose(out);
-	cout << sizeof(PIXELDATA);
+	// Заголовок прочитан и проверен, тип - верный (BGR-24), размеры (mx,my) найдены
+	int mx = bh.biWidth;
+	int my = bh.biHeight;
+	int mx3 = (3 * mx + 3) & (-4);    // Compute row width in file, including padding to 4-byte boundary
+	unsigned char* tmp_buf = new unsigned  char[mx3 * my];    // читаем данные
+	res = fread(tmp_buf, 1, mx3 * my, f);
+	if ((int)res != mx3 * my) { delete[]tmp_buf; fclose(f); return NULL; }
+	// данные прочитаны
+	fclose(f);
+
+	// выделим память для результата
+	int* v = new int[mx * my];
+
+	// Перенос данных (не забудем про BGR->RGB)
+	unsigned char* ptr = (unsigned char*)v;
+	for (int y = my - 1; y >= 0; y--) {
+		unsigned char* pRow = tmp_buf + mx3 * y;
+		for (int x = 0; x < mx; x++) {
+			*ptr++ = *(pRow + 2);
+			*ptr++ = *(pRow + 1);
+			*ptr++ = *pRow;
+			pRow += 3;
+			ptr++;
+		}
+	}
+	delete[]tmp_buf;
+	return v;    // OK
+}
+int main() {
+	int mx, my;
+	loadBMP("test.bmp");
 }
