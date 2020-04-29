@@ -28,17 +28,18 @@ typedef struct {
 } PIXELDATA;
 
 int main() {
+
 	char filename[256];
-	cout << "Enter input picture name\n;";
+	cout << "Enter input picture name\n";
 	gets_s(filename);
 	FILE* in = fopen(filename, "rb");
 	if (!in) { cout << "Something wrong with input file"; exit(1); }
-	cout << "Enter output picture name\n;";
+	cout << "Enter output picture name\n";
 	gets_s(filename);
 	FILE* out = fopen(filename, "wb");
 	if (!out) { cout << "Something wrong with output file"; exit(2); }
 	/*Opening input and putput file*/
-	int n;
+	double n;
 	cout << "Enter coefficient to resize: ";
 	cin >> n;
 	BMPHEAD head;
@@ -51,13 +52,80 @@ int main() {
 	int inPadding = (4 - (oldWidth * sizeof(PIXELDATA)) % 4) % 4;
 	int outPadding = (4 - (newWidth * sizeof(PIXELDATA)) % 4) % 4;
 	head.biSizeImage = ((sizeof(PIXELDATA) * newWidth) + outPadding) * abs(newDepth);
-	head.filesize = head.biSizeImage + sizeof(BMPHEAD);
+ 	head.filesize = head.biSizeImage + sizeof(BMPHEAD);
 	fwrite(&head, sizeof(BMPHEAD), 1, out);
 	PIXELDATA p;
 	PIXELDATA* line = new PIXELDATA[oldWidth * sizeof(PIXELDATA)];// determine ratio
 	double widthRatio = (double)oldWidth / (double)newWidth;
 	double depthRatio = (double)oldDepth / (double)newDepth;
-	int cachedScanline = -1;
+	PIXELDATA** oldPic = new PIXELDATA* [oldDepth];
+	PIXELDATA** newPic = new PIXELDATA* [newDepth];
+	for (int i = 0; i < oldDepth; i++) {
+		oldPic[i] = new PIXELDATA[oldWidth];
+	}
+	for (int i = 0; i < newDepth; i++) {
+		newPic[i] = new PIXELDATA [newWidth];
+	}
+	for (int i = 0; i < oldDepth; i++) {
+		for (int j = 0; j < oldWidth; j++) {
+			oldPic[i][j].redComponent = getc(in);
+			oldPic[i][j].greenComponent = getc(in);
+			oldPic[i][j].blueComponent = getc(in);
+		}
+		getc(in);
+	}
+	for (int i = 0; i < newDepth; i++) {
+		float tmp = (float)(i) / (float)(newDepth - 1) * (oldDepth - 1);
+		int h = (int)floor(tmp);
+		if (h < 0) {
+			h = 0;
+		}
+		else {
+			if (h >= oldDepth - 1) {
+				h = oldDepth - 2;
+			}
+		}
+		float u = tmp - h;
+		for (int j = 0; j < newWidth; j++) {
+			tmp = (float)(j) / (float)(newWidth - 1) * (oldWidth - 1);
+			int w = (int)floor(tmp);
+			if (w < 0) {
+				w = 0;
+			}
+			else {
+				if (w >= oldWidth - 1) {
+					w = oldWidth - 2;
+				}
+			}
+			float t = tmp - w;
+			float d1 = (1 - t) * (1 - u);
+			float d2 = t * (1 - u);
+			float d3 = t * u;
+			float d4 = (1 - t) * u;
+			PIXELDATA p1 = oldPic[h][w];
+			PIXELDATA p2 = oldPic[h][w + 1];
+			PIXELDATA p3 = oldPic[h + 1][w + 1];
+			PIXELDATA p4 = oldPic[h + 1][w];
+			PIXELDATA toAdd;
+			toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2 + p3.blueComponent * d3 + p4.blueComponent * d4;
+			toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2 + p3.greenComponent * d3 + p4.greenComponent * d4;
+			toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2 + p3.redComponent * d3 + p4.redComponent * d4;
+
+			newPic[j][i] = toAdd;
+			
+
+		}
+	}
+	for (int i = 0; i < head.depth; i++) {
+		for (int j = 0; j < head.width; j++) {
+			fwrite(&newPic[i][j], sizeof(PIXELDATA), 1, out);
+		}
+		for (int j = 0; j < outPadding; j++)
+		{
+			fputc(0x00, out);
+		}
+	}
+	/*
 	for (int i = 0; i < head.depth; i++)
 	{
 		int row = i * depthRatio;
@@ -76,7 +144,7 @@ int main() {
 		{
 			fputc(0x00, out);
 		}
-	}
+	}*/
 	fclose(in);
 	fclose(out);
 	cout << sizeof(PIXELDATA);
