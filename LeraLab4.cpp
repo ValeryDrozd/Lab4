@@ -79,10 +79,18 @@ int main() {
 		if (h <= 0) {
 			h = 0;
 		}
-		else {
+		else 
 			if (h >= oldDepth - 1) {
 				h = oldDepth - 2;
 			}
+		else
+		if (h<0)
+		{
+			h = 0;
+		}
+		if (oldDepth == 1)
+		{
+			tmp = 0;
 		}
 		float u = tmp - h;
 		for (int j = 0; j < newWidth; j++) {
@@ -91,28 +99,55 @@ int main() {
 			if (w < 0) {
 				w = 0;
 			}
-			else {
+			else 
 				if (w >= oldWidth - 1) {
 					w = oldWidth - 2;
 				}
-			}
+			else
+				if (w < 0) {
+					w = 0;
+				}
 			float t = tmp - w;
+			if (oldWidth == 1) {
+				t = 0;
+			}
 			float d1 = (1 - t) * (1 - u);
 			float d2 = t * (1 - u);
 			float d3 = t * u;
 			float d4 = (1 - t) * u;
-			PIXELDATA p1 = oldPic[h][w];
-			PIXELDATA p2 = oldPic[h][w + 1];
-			PIXELDATA p3 = oldPic[h + 1][w + 1];
-			PIXELDATA p4 = oldPic[h + 1][w];
 			PIXELDATA toAdd;
-			toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2 + p3.blueComponent * d3 + p4.blueComponent * d4;
-			toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2 + p3.greenComponent * d3 + p4.greenComponent * d4;
-			toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2 + p3.redComponent * d3 + p4.redComponent * d4;
-
+			PIXELDATA p1;
+			PIXELDATA p2;
+			PIXELDATA p3;
+			PIXELDATA p4;
+			if (oldWidth == 1 && oldDepth == 1)toAdd = oldPic[0][0];
+			else
+				if (oldDepth == 1) {
+					p1 = oldPic[h][w];
+					p2 = oldPic[h][w + 1];
+					toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2;
+					toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2;
+					toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2;
+				}
+				else
+					if (oldWidth == 1) {
+						p1 = oldPic[h][w];
+						p4 = oldPic[h + 1][w];
+						toAdd.blueComponent = p1.blueComponent * d1 + p4.blueComponent * d4;
+						toAdd.greenComponent = p1.greenComponent * d1  + p4.greenComponent * d4;
+						toAdd.redComponent = p1.redComponent * d1 + p4.redComponent * d4;
+					}
+					else
+					{
+						p1 = oldPic[h][w];
+						p2 = oldPic[h][w + 1];
+						p3 = oldPic[h + 1][w + 1];
+						p4 = oldPic[h + 1][w];
+						toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2 + p3.blueComponent * d3 + p4.blueComponent * d4;
+						toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2 + p3.greenComponent * d3 + p4.greenComponent * d4;
+						toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2 + p3.redComponent * d3 + p4.redComponent * d4;
+					}
 			newPic[i][j] = toAdd;
-
-
 		}
 	}
 	for (int i = 0; i < head.depth; i++) {
