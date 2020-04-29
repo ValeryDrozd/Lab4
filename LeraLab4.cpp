@@ -1,97 +1,83 @@
-﻿#define  _CRT_SECURE_NO_WARNINGS
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 using namespace std;
-typedef unsigned __int16 WORD;
-
+#pragma pack(2)
 typedef struct {
-	WORD   bfType;         // 0x4d42 | 0x4349 | 0x5450
-	int    bfSize;         // размер файла
-	int    bfReserved;     // 0
-	int    bfOffBits;      // смещение до поля данных,
-						   // обычно 54 = 16 + biSize
-	int    biSize;         // размер струкуры в байтах:
-						   // 40(BITMAPINFOHEADER) или 108(BITMAPV4HEADER)
-						   // или 124(BITMAPV5HEADER)
-	int    biWidth;        // ширина в точках
-	int    biHeight;       // высота в точках
-	WORD   biPlanes;       // всегда должно быть 1
-	WORD   biBitCount;     // 0 | 1 | 4 | 8 | 16 | 24 | 32
-	int    biCompression;  // BI_RGB | BI_RLE8 | BI_RLE4 |
-						   // BI_BITFIELDS | BI_JPEG | BI_PNG
-						   // реально используется лишь BI_RGB
-	int    biSizeImage;    // Количество байт в поле данных
-						   // Обычно устанавливается в 0
-	int    biXPelsPerMeter;// горизонтальное разрешение, точек на дюйм
-	int    biYPelsPerMeter;// вертикальное разрешение, точек на дюйм
-	int    biClrUsed;      // Количество используемых цветов
-						   // (если есть таблица цветов)
-	int    biClrImportant; // Количество существенных цветов.
-						   // Можно считать, просто 0
-} BMPheader;
-int* loadBMP(const char* fname)
-{
-	FILE* f = fopen(fname, "rb");
-	if (!f) return NULL;
-	BMPheader bh;    // File header sizeof(BMPheader) = 56
-	size_t res;
+	int8_t id[2];            // Завжди дві літери 'B' і 'M'
+	int32_t filesize;        // Розмір файла в байтах
+	int16_t reserved[2];     // 0, 0
+	int32_t headersize;      // 54L для 24-бітних зображень
+	int32_t infoSize;        // 40L для 24-бітних зображень
+	int32_t width;           // ширина зображення в пікселях
+	int32_t depth;           // висота зображення в пікселях
+	int16_t biPlanes;        // 1 (для 24-бітних зображень)
+	int16_t bits;            // 24 (для 24-бітних зображень)
+	int32_t biCompression;   // 0L
+	int32_t biSizeImage;     // Можна поставити в 0L для зображень без компрессії (наш варіант)
+	int32_t biXPelsPerMeter; // Рекомендована кількість пікселів на метр, можна 0L
+	int32_t biYPelsPerMeter; // Те саме, по висоті
+	int32_t biClrUsed;       // Для індексованих зображень, можна поставити 0L
+	int32_t biClrImportant;  // Те саме
+} BMPHEAD;
 
-	// читаем заголовок
-	res = fread(&bh, 1, sizeof(BMPheader), f);
-	if (res != sizeof(BMPheader)) { fclose(f); return NULL; }
+#pragma pack(2)
+typedef struct {
+	int8_t redComponent;
+	int8_t greenComponent;
+	int8_t blueComponent;
+} PIXELDATA;
 
-	// проверяем сигнатуру
-	if (bh.bfType != 0x4d42 && bh.bfType != 0x4349 && bh.bfType != 0x5450) { fclose(f); return NULL; }
-
-	// проверка размера файла
-	fseek(f, 0, SEEK_END);
-	int filesize = ftell(f);
-	// восстановим указатель в файле:
-	fseek(f, sizeof(BMPheader), SEEK_SET);
-	// проверим условия
-	if (bh.bfSize != filesize ||
-		bh.bfReserved != 0 ||
-		bh.biPlanes != 1 ||
-		(bh.biSize != 40 && bh.biSize != 108 && bh.biSize != 124) ||
-		bh.bfOffBits != 14 + bh.biSize ||
-
-		bh.biWidth < 1 || bh.biWidth >10000 ||
-		bh.biHeight < 1 || bh.biHeight>10000 ||
-		bh.biBitCount != 24 ||             // пока рассматриваем только полноцветные изображения
-		bh.biCompression != 0                // пока рассматриваем только несжатие изображения
-		)
+int main() {
+	char filename[256];
+	cout << "Enter input picture name\n;";
+	gets_s(filename);
+	FILE* in = fopen(filename, "rb");
+	if (!in) { cout << "Something wrong with input file"; exit(1); }
+	cout << "Enter output picture name\n;";
+	gets_s(filename);
+	FILE* out = fopen(filename, "wb");
+	if (!out) { cout << "Something wrong with output file"; exit(2); }
+	/*Opening input and putput file*/
+	int n;
+	cout << "Enter coefficient to resize: ";
+	cin >> n;
+	BMPHEAD head;
+	fread(&head, sizeof(BMPHEAD), 1, in);
+	/*reconfiguring old image*/
+	int oldDepth = head.depth;
+	int newDepth = head.depth = oldDepth * n;
+	int oldWidth = head.width;
+	int newWidth = head.width = oldWidth * n;
+	int inPadding = (4 - (oldWidth * sizeof(PIXELDATA)) % 4) % 4;
+	int outPadding = (4 - (newWidth * sizeof(PIXELDATA)) % 4) % 4;
+	head.biSizeImage = ((sizeof(PIXELDATA) * newWidth) + outPadding) * abs(newDepth);
+	head.filesize = head.biSizeImage + sizeof(BMPHEAD);
+	fwrite(&head, sizeof(BMPHEAD), 1, out);
+	PIXELDATA p;
+	PIXELDATA* line = new PIXELDATA[oldWidth * sizeof(PIXELDATA)];// determine ratio
+	double widthRatio = (double)oldWidth / (double)newWidth;
+	double depthRatio = (double)oldDepth / (double)newDepth;
+	int cachedScanline = -1;
+	for (int i = 0; i < head.depth; i++)
 	{
-		fclose(f);
-		return NULL;
-	}
-	// Заголовок прочитан и проверен, тип - верный (BGR-24), размеры (mx,my) найдены
-	int mx = bh.biWidth;
-	int my = bh.biHeight;
-	int mx3 = (3 * mx + 3) & (-4);    // Compute row width in file, including padding to 4-byte boundary
-	unsigned char* tmp_buf = new unsigned  char[mx3 * my];    // читаем данные
-	res = fread(tmp_buf, 1, mx3 * my, f);
-	if ((int)res != mx3 * my) { delete[]tmp_buf; fclose(f); return NULL; }
-	// данные прочитаны
-	fclose(f);
-
-	// выделим память для результата
-	int* v = new int[mx * my];
-
-	// Перенос данных (не забудем про BGR->RGB)
-	unsigned char* ptr = (unsigned char*)v;
-	for (int y = my - 1; y >= 0; y--) {
-		unsigned char* pRow = tmp_buf + mx3 * y;
-		for (int x = 0; x < mx; x++) {
-			*ptr++ = *(pRow + 2);
-			*ptr++ = *(pRow + 1);
-			*ptr++ = *pRow;
-			pRow += 3;
-			ptr++;
+		int row = i * depthRatio;
+		if (cachedScanline != row)
+		{
+			fseek(in, sizeof(head) + (((sizeof(PIXELDATA) * oldWidth) + inPadding) * row), SEEK_SET);
+			fread(line, sizeof(PIXELDATA), oldWidth, in);
+			cachedScanline = row;
+		}
+		for (int j = 0; j < newWidth; j++)
+		{
+			int column = j * widthRatio;
+			fwrite(&line [column] , sizeof(PIXELDATA), 1, out);
+		}
+		for (int j = 0; j < outPadding; j++)
+		{
+			fputc(0x00, out);
 		}
 	}
-	delete[]tmp_buf;
-	return v;    // OK
-}
-int main() {
-	int mx, my;
-	loadBMP("test.bmp");
+	fclose(in);
+	fclose(out);
+	cout << sizeof(PIXELDATA);
 }
