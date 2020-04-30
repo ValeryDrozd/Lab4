@@ -27,67 +27,66 @@ typedef struct {
 	uint8_t blueComponent;
 } PIXELDATA;
 
-int main() {
 
+void read(BMPHEAD& head,PIXELDATA**& oldPic) {
 	char filename[256];
 	cout << "Enter input picture name\n";
 	gets_s(filename);
 	FILE* in = fopen(filename, "rb");
-	if (!in) { cout << "Something wrong with input file"; exit(1); }
-	cout << "Enter output picture name\n";
-	gets_s(filename);
-	FILE* out = fopen(filename, "wb");
-	if (!out) { cout << "Something wrong with output file"; exit(2); }
-	/*Opening input and putput file*/
+	if (!in) { cout << "Wrong input file\n"; exit(1); }
+	fread(&head, sizeof(BMPHEAD), 1, in);
+	oldPic = new PIXELDATA* [head.depth];
+	for (int i = 0; i < head.depth; i++) {
+		oldPic[i] = new PIXELDATA[head.width];
+	}
+
+	int inPadding = (4 - (head.width * sizeof(PIXELDATA)) % 4) % 4;
+	for (int i = 0; i < head.depth; i++) {
+		for (int j = 0; j < head.width; j++) {
+			fread(&oldPic[i][j], sizeof(PIXELDATA), 1, in);
+		}
+		for (int j = 1; j <= inPadding; j++)
+			getc(in);
+	}
+	fclose(in);
+}
+
+void interol(BMPHEAD& head,PIXELDATA** oldPic,PIXELDATA**& newPic) {
 	double n;
 	cout << "Enter coefficient to resize: ";
 	cin >> n;
-	BMPHEAD head;
-	fread(&head, sizeof(BMPHEAD), 1, in);
 	/*reconfiguring old image*/
 	int oldDepth = head.depth;
 	int newDepth = head.depth = int(oldDepth * n);
 	int oldWidth = head.width;
 	int newWidth = head.width = int(oldWidth * n);
-	int inPadding = (4 - (oldWidth * sizeof(PIXELDATA)) % 4) % 4;
-	int outPadding = (4 - (newWidth * sizeof(PIXELDATA)) % 4) % 4;
+	int outPadding = (4 - (head.width * sizeof(PIXELDATA)) % 4) % 4;
 	head.biSizeImage = ((sizeof(PIXELDATA) * newWidth) + outPadding) * abs(newDepth);
 	head.filesize = head.biSizeImage + sizeof(BMPHEAD);
-	fwrite(&head, sizeof(BMPHEAD), 1, out);
+
 	PIXELDATA p;
-	PIXELDATA* line = new PIXELDATA[oldWidth * sizeof(PIXELDATA)];// determine ratio
 	double widthRatio = (double)oldWidth / (double)newWidth;
 	double depthRatio = (double)oldDepth / (double)newDepth;
-	PIXELDATA** oldPic = new PIXELDATA * [oldDepth];
-	PIXELDATA** newPic = new PIXELDATA * [newDepth];
-	for (int i = 0; i < oldDepth; i++) {
-		oldPic[i] = new PIXELDATA[oldWidth];
-	}
+	newPic = new PIXELDATA * [newDepth];
 	for (int i = 0; i < newDepth; i++) {
 		newPic[i] = new PIXELDATA[newWidth];
 	}
-	for (int i = 0; i < oldDepth; i++) {
-		for (int j = 0; j < oldWidth; j++) {
-			fread(&oldPic[i][j], sizeof(PIXELDATA), 1, in);
-		}
-		for(int j=1;j<=inPadding;j++)
-			getc(in);
-	}
+
 	for (int i = 0; i < newDepth; i++) {
 		float tmp = ((float)(i) / (float)(newDepth - 1) * (oldDepth - 1));
 		int h = (int)floor(tmp);
 		if (h <= 0) {
 			h = 0;
 		}
-		else 
+		else
 			if (h >= oldDepth - 1) {
 				h = oldDepth - 2;
 			}
-		else
-		if (h<0)
-		{
-			h = 0;
-		}
+			
+				if (h < 0)
+				{
+					h = 0;
+				}
 		if (oldDepth == 1)
 		{
 			tmp = 0;
@@ -99,14 +98,14 @@ int main() {
 			if (w < 0) {
 				w = 0;
 			}
-			else 
-				if (w >= oldWidth - 1) {
-					w = oldWidth - 2;
-				}
 			else
-				if (w < 0) {
-					w = 0;
-				}
+			if (w >= oldWidth - 1) {
+				w = oldWidth - 2;
+			}
+			
+			if (w < 0) {
+				w = 0;
+			}
 			float t = tmp - w;
 			if (oldWidth == 1) {
 				t = 0;
@@ -134,7 +133,7 @@ int main() {
 						p1 = oldPic[h][w];
 						p4 = oldPic[h + 1][w];
 						toAdd.blueComponent = p1.blueComponent * d1 + p4.blueComponent * d4;
-						toAdd.greenComponent = p1.greenComponent * d1  + p4.greenComponent * d4;
+						toAdd.greenComponent = p1.greenComponent * d1 + p4.greenComponent * d4;
 						toAdd.redComponent = p1.redComponent * d1 + p4.redComponent * d4;
 					}
 					else
@@ -150,16 +149,36 @@ int main() {
 			newPic[i][j] = toAdd;
 		}
 	}
+}
+
+void write(BMPHEAD& head,PIXELDATA** pic) {
+	char filename[256];
+	cout << "Enter output picture name\n";
+	cin.ignore();
+	gets_s(filename);
+	FILE* out = fopen(filename, "wb");
+	int outPadding = (4 - (head.width * sizeof(PIXELDATA)) % 4) % 4;
+	if (!out) { cout << "Something wrong with output file"; exit(2); }
+	fwrite(&head, sizeof(BMPHEAD), 1, out);
 	for (int i = 0; i < head.depth; i++) {
 		for (int j = 0; j < head.width; j++) {
-			fwrite(&newPic[i][j], sizeof(PIXELDATA), 1, out);
+			fwrite(&pic[i][j], sizeof(PIXELDATA), 1, out);
 		}
 		for (int j = 0; j < outPadding; j++)
 		{
 			fputc(0x00, out);
 		}
 	}
-	fclose(in);
 	fclose(out);
-	cout << sizeof(PIXELDATA);
+}
+
+int main() {
+	PIXELDATA** oldPic;
+	PIXELDATA** newPic;
+	BMPHEAD head;
+	read(head, oldPic);
+	interol(head, oldPic, newPic);
+	write(head, newPic);
+	
+	
 }
