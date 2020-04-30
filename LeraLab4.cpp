@@ -22,32 +22,33 @@ typedef struct {
 
 #pragma pack(2)
 typedef struct {
-	int8_t redComponent;
-	int8_t greenComponent;
-	int8_t blueComponent;
+	uint8_t redComponent;
+	uint8_t greenComponent;
+	uint8_t blueComponent;
 } PIXELDATA;
 
 int main() {
+
 	char filename[256];
-	cout << "Enter input picture name\n;";
+	cout << "Enter input picture name\n";
 	gets_s(filename);
 	FILE* in = fopen(filename, "rb");
 	if (!in) { cout << "Something wrong with input file"; exit(1); }
-	cout << "Enter output picture name\n;";
+	cout << "Enter output picture name\n";
 	gets_s(filename);
 	FILE* out = fopen(filename, "wb");
 	if (!out) { cout << "Something wrong with output file"; exit(2); }
 	/*Opening input and putput file*/
-	int n;
+	double n;
 	cout << "Enter coefficient to resize: ";
 	cin >> n;
 	BMPHEAD head;
 	fread(&head, sizeof(BMPHEAD), 1, in);
 	/*reconfiguring old image*/
 	int oldDepth = head.depth;
-	int newDepth = head.depth = oldDepth * n;
+	int newDepth = head.depth = int(oldDepth * n);
 	int oldWidth = head.width;
-	int newWidth = head.width = oldWidth * n;
+	int newWidth = head.width = int(oldWidth * n);
 	int inPadding = (4 - (oldWidth * sizeof(PIXELDATA)) % 4) % 4;
 	int outPadding = (4 - (newWidth * sizeof(PIXELDATA)) % 4) % 4;
 	head.biSizeImage = ((sizeof(PIXELDATA) * newWidth) + outPadding) * abs(newDepth);
@@ -57,20 +58,101 @@ int main() {
 	PIXELDATA* line = new PIXELDATA[oldWidth * sizeof(PIXELDATA)];// determine ratio
 	double widthRatio = (double)oldWidth / (double)newWidth;
 	double depthRatio = (double)oldDepth / (double)newDepth;
-	int cachedScanline = -1;
-	for (int i = 0; i < head.depth; i++)
-	{
-		int row = i * depthRatio;
-		if (cachedScanline != row)
-		{
-			fseek(in, sizeof(head) + (((sizeof(PIXELDATA) * oldWidth) + inPadding) * row), SEEK_SET);
-			fread(line, sizeof(PIXELDATA), oldWidth, in);
-			cachedScanline = row;
+	PIXELDATA** oldPic = new PIXELDATA * [oldDepth];
+	PIXELDATA** newPic = new PIXELDATA * [newDepth];
+	for (int i = 0; i < oldDepth; i++) {
+		oldPic[i] = new PIXELDATA[oldWidth];
+	}
+	for (int i = 0; i < newDepth; i++) {
+		newPic[i] = new PIXELDATA[newWidth];
+	}
+	for (int i = 0; i < oldDepth; i++) {
+		for (int j = 0; j < oldWidth; j++) {
+			fread(&oldPic[i][j], sizeof(PIXELDATA), 1, in);
 		}
-		for (int j = 0; j < newWidth; j++)
+		for(int j=1;j<=inPadding;j++)
+			getc(in);
+	}
+	for (int i = 0; i < newDepth; i++) {
+		float tmp = ((float)(i) / (float)(newDepth - 1) * (oldDepth - 1));
+		int h = (int)floor(tmp);
+		if (h <= 0) {
+			h = 0;
+		}
+		else 
+			if (h >= oldDepth - 1) {
+				h = oldDepth - 2;
+			}
+		else
+		if (h<0)
 		{
-			int column = j * widthRatio;
-			fwrite(&line [column] , sizeof(PIXELDATA), 1, out);
+			h = 0;
+		}
+		if (oldDepth == 1)
+		{
+			tmp = 0;
+		}
+		float u = tmp - h;
+		for (int j = 0; j < newWidth; j++) {
+			tmp = (float)(j) / (float)(newWidth - 1) * (oldWidth - 1);
+			int w = (int)floor(tmp);
+			if (w < 0) {
+				w = 0;
+			}
+			else 
+				if (w >= oldWidth - 1) {
+					w = oldWidth - 2;
+				}
+			else
+				if (w < 0) {
+					w = 0;
+				}
+			float t = tmp - w;
+			if (oldWidth == 1) {
+				t = 0;
+			}
+			float d1 = (1 - t) * (1 - u);
+			float d2 = t * (1 - u);
+			float d3 = t * u;
+			float d4 = (1 - t) * u;
+			PIXELDATA toAdd;
+			PIXELDATA p1;
+			PIXELDATA p2;
+			PIXELDATA p3;
+			PIXELDATA p4;
+			if (oldWidth == 1 && oldDepth == 1)toAdd = oldPic[0][0];
+			else
+				if (oldDepth == 1) {
+					p1 = oldPic[h][w];
+					p2 = oldPic[h][w + 1];
+					toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2;
+					toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2;
+					toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2;
+				}
+				else
+					if (oldWidth == 1) {
+						p1 = oldPic[h][w];
+						p4 = oldPic[h + 1][w];
+						toAdd.blueComponent = p1.blueComponent * d1 + p4.blueComponent * d4;
+						toAdd.greenComponent = p1.greenComponent * d1  + p4.greenComponent * d4;
+						toAdd.redComponent = p1.redComponent * d1 + p4.redComponent * d4;
+					}
+					else
+					{
+						p1 = oldPic[h][w];
+						p2 = oldPic[h][w + 1];
+						p3 = oldPic[h + 1][w + 1];
+						p4 = oldPic[h + 1][w];
+						toAdd.blueComponent = p1.blueComponent * d1 + p2.blueComponent * d2 + p3.blueComponent * d3 + p4.blueComponent * d4;
+						toAdd.greenComponent = p1.greenComponent * d1 + p2.greenComponent * d2 + p3.greenComponent * d3 + p4.greenComponent * d4;
+						toAdd.redComponent = p1.redComponent * d1 + p2.redComponent * d2 + p3.redComponent * d3 + p4.redComponent * d4;
+					}
+			newPic[i][j] = toAdd;
+		}
+	}
+	for (int i = 0; i < head.depth; i++) {
+		for (int j = 0; j < head.width; j++) {
+			fwrite(&newPic[i][j], sizeof(PIXELDATA), 1, out);
 		}
 		for (int j = 0; j < outPadding; j++)
 		{
