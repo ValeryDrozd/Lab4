@@ -1,5 +1,6 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
+#include <stdlib.h>
 using namespace std;
 #pragma pack(2)
 typedef struct {
@@ -28,10 +29,7 @@ typedef struct {
 } PIXELDATA;
 
 
-void read(BMPHEAD& head, PIXELDATA**& oldPic) {
-	char filename[256];
-	cout << "Enter input picture name\n";
-	gets_s(filename);
+void read(char* filename, BMPHEAD& head, PIXELDATA**& oldPic) {
 	FILE* in = fopen(filename, "rb");
 	if (!in) { cout << "Wrong input file\n"; exit(1); }
 	fread(&head, sizeof(BMPHEAD), 1, in);
@@ -51,11 +49,11 @@ void read(BMPHEAD& head, PIXELDATA**& oldPic) {
 	fclose(in);
 }
 
-void interol(BMPHEAD& head, PIXELDATA** oldPic, PIXELDATA**& newPic) {
-	double n;
-	cout << "Enter coefficient to resize: ";
-	cin >> n;
+void interol(double n, BMPHEAD& head, PIXELDATA** oldPic, PIXELDATA**& newPic) {
 	/*reconfiguring old image*/
+	if (n <= 0) {
+		cout << "Wrong coefficient to scale\n";
+	}
 	int oldDepth = head.depth;
 	int newDepth = head.depth = int(oldDepth * n);
 	int oldWidth = head.width;
@@ -151,11 +149,7 @@ void interol(BMPHEAD& head, PIXELDATA** oldPic, PIXELDATA**& newPic) {
 	}
 }
 
-void write(BMPHEAD& head, PIXELDATA** pic) {
-	char filename[256];
-	cout << "Enter output picture name\n";
-	cin.ignore();
-	gets_s(filename);
+void write(char* filename, BMPHEAD& head, PIXELDATA** pic) {
 	FILE* out = fopen(filename, "wb");
 	int outPadding = (4 - (head.width * sizeof(PIXELDATA)) % 4) % 4;
 	if (!out) { cout << "Something wrong with output file"; exit(2); }
@@ -172,13 +166,19 @@ void write(BMPHEAD& head, PIXELDATA** pic) {
 	fclose(out);
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+
 	PIXELDATA** oldPic;
 	PIXELDATA** newPic;
 	BMPHEAD head;
-	read(head, oldPic);
-	interol(head, oldPic, newPic);
-	write(head, newPic);
-
+	if (argc != 4) {
+		cout << "Wrong input\n";
+		exit(3);
+	}
+	read(argv[1], head, oldPic);
+	interol(atof(argv[3]), head, oldPic, newPic);
+	write(argv[2], head, newPic);
+	cout << "Enlarging image " << argv[3] << "times... Done!\n";
+	cout << "Written result to " << argv[2];
 
 }
